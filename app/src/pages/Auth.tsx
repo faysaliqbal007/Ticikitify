@@ -33,7 +33,10 @@ export default function Auth() {
   const [verifyEmail, setVerifyEmail] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
+  const [verifyMessage, setVerifyMessage] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendError, setResendError] = useState('');
+  const [resendSuccess, setResendSuccess] = useState('');
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -57,6 +60,7 @@ export default function Auth() {
         const result = await register({ name, email, password, phone, role: userType });
         if (result.requiresVerification) {
           setVerifyEmail(result.email);
+          setVerifyMessage(result.message);
           setShowVerifyScreen(true);
         }
       }
@@ -70,36 +74,110 @@ export default function Auth() {
 
   // Show email sent screen after registration
   if (showVerifyScreen) {
+    const handleResend = async () => {
+      setIsResending(true);
+      setResendError('');
+      setResendSuccess('');
+      try {
+        const { apiResendVerification } = await import('@/lib/api');
+        const response = await apiResendVerification(verifyEmail);
+        setResendSuccess(response.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to resend email.';
+        setResendError(message);
+      } finally {
+        setIsResending(false);
+      }
+    };
+
     return (
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Background Decorative Elements */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full text-center space-y-6"
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="max-w-md w-full relative z-10"
         >
-          <div className="w-24 h-24 mx-auto rounded-full bg-purple-500/20 flex items-center justify-center">
-            <span className="text-5xl">📧</span>
-          </div>
-          <h1 className="text-3xl font-bold text-white">Check Your Email!</h1>
-          <p className="text-gray-400">
-            We've sent a verification link to{' '}
-            <span className="text-cyan-400 font-medium">{verifyEmail}</span>.
-            Click the link in the email to activate your account.
-          </p>
-          <div className="bg-dark-50 border border-white/10 rounded-2xl p-5 text-left">
-            <p className="text-gray-500 text-sm">📌 Didn't receive it? Check your spam folder, or</p>
-            <button
-              onClick={() => setShowVerifyScreen(false)}
-              className="text-cyan-400 text-sm hover:underline mt-1"
+          <div className="bg-dark-bg/80 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl text-center space-y-8">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.2 }}
+              className="w-24 h-24 mx-auto rounded-full bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/30 flex items-center justify-center relative group"
             >
-              go back and try again
-            </button>
-          </div>
-          <Link to="/login">
-            <Button variant="outline" className="border-white/10 text-gray-400 w-full">
+              <div className="absolute inset-0 rounded-full animate-ping bg-purple-500/20" />
+              <Mail className="w-10 h-10 text-cyan-400 z-10 group-hover:scale-110 transition-transform" />
+            </motion.div>
+
+            <div className="space-y-3">
+              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+                Check Your Email
+              </h1>
+              
+              {verifyMessage ? (
+                <p className="text-gray-400 text-[15px] leading-relaxed">
+                  {verifyMessage}
+                </p>
+              ) : (
+                <p className="text-gray-400 text-[15px] leading-relaxed">
+                  We've sent a verification link to<br/>
+                  <span className="text-cyan-400 font-medium text-lg">{verifyEmail}</span>.<br/>
+                  Click the link to activate your account.
+                </p>
+              )}
+            </div>
+
+            <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 text-left space-y-4">
+              <div className="flex items-start gap-3">
+                <span className="text-purple-400 text-lg">📌</span>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Didn't receive the email? Check your spam folder, or request a new link below.
+                </p>
+              </div>
+
+              {resendError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <p className="text-red-400 text-sm">{resendError}</p>
+                </div>
+              )}
+              {resendSuccess && (
+                <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                  <p className="text-green-400 text-sm">{resendSuccess}</p>
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={handleResend}
+                disabled={isResending}
+                className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors"
+              >
+                {isResending ? (
+                  <div className="w-4 h-4 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mr-2" />
+                ) : (
+                  <Mail className="w-4 h-4 mr-2" />
+                )}
+                {isResending ? 'Sending...' : 'Resend Verification Email'}
+              </Button>
+            </div>
+
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowVerifyScreen(false);
+                setIsLogin(true);
+                setErrorMsg('');
+              }}
+              className="w-full text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
               Back to Login
             </Button>
-          </Link>
+          </div>
         </motion.div>
       </div>
     );
@@ -224,57 +302,6 @@ export default function Auth() {
               <span className="px-2 bg-dark-bg text-gray-500">Or continue with</span>
             </div>
           </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <Label className="text-gray-400">Full Name</Label>
-                <div className="relative mt-1">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                  <Input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your full name"
-                    className="pl-10 bg-white/5 border-white/10 text-white"
-                    required={!isLogin}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-gray-400">Email</Label>
-              <div className="relative mt-1">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="pl-10 bg-white/5 border-white/10 text-white"
-                  required
-                />
-              </div>
-            </div>
-
-            {!isLogin && (
-              <div>
-                <Label className="text-gray-400">Phone Number</Label>
-                <div className="relative mt-1">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                  <Input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+880 1XXX-XXXXXX"
-                    className="pl-10 bg-white/5 border-white/10 text-white"
-                    required={!isLogin}
-                  />
-                </div>
-              </div>
-            )}
 
             <div>
               <Label className="text-gray-400">Password</Label>
