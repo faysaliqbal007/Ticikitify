@@ -303,6 +303,57 @@ export default function Auth() {
             </div>
           </div>
 
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div>
+                <Label className="text-gray-400">Full Name</Label>
+                <div className="relative mt-1">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                    className="pl-10 bg-white/5 border-white/10 text-white"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-gray-400">Email</Label>
+              <div className="relative mt-1">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="pl-10 bg-white/5 border-white/10 text-white"
+                  required
+                />
+              </div>
+            </div>
+
+            {!isLogin && (
+              <div>
+                <Label className="text-gray-400">Phone Number</Label>
+                <div className="relative mt-1">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <Input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+880 1XXX-XXXXXX"
+                    className="pl-10 bg-white/5 border-white/10 text-white"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <Label className="text-gray-400">Password</Label>
               <div className="relative mt-1">
