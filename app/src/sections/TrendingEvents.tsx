@@ -129,9 +129,23 @@ export default function TrendingEvents() {
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-4 border-t border-white/5">
                       <div className="flex items-center gap-2">
+<<<<<<< HEAD
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-bold">
                           {event.organizer.name.charAt(0)}
                         </div>
+=======
+                        {event.organizer.logo ? (
+                          <img 
+                            src={event.organizer.logo} 
+                            alt={event.organizer.name}
+                            className="w-6 h-6 rounded-full object-cover border border-white/10"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-white">
+                            {event.organizer.name.charAt(0)}
+                          </div>
+                        )}
+>>>>>>> cc929bc1ffbcaf482aac36df8e71c4e8e23c8788
                         <span className="text-sm text-gray-500 truncate max-w-[100px]">
                           {event.organizer.name}
                         </span>

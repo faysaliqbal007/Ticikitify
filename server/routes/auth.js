@@ -190,7 +190,15 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+<<<<<<< HEAD
     // Block login if email not verified (admins are pre-verified via seed)
+=======
+<<<<<<< HEAD
+    // Block login if email not verified (admins are pre-verified via seed)
+=======
+    // Block login if email not verified (admins are pre-verified via seed)//
+>>>>>>> 778f5b13ddf65382c18835a955514b8f0d18db0e
+>>>>>>> cc929bc1ffbcaf482aac36df8e71c4e8e23c8788
     if (!user.isVerified) {
       return res.status(403).json({
         message: 'Please verify your email before logging in. Check your inbox for the verification link.',
@@ -207,4 +215,11 @@ router.post('/login', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+
+>>>>>>> 778f5b13ddf65382c18835a955514b8f0d18db0e
+>>>>>>> cc929bc1ffbcaf482aac36df8e71c4e8e23c8788
 module.exports = router;

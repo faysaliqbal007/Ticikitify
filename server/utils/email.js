@@ -38,7 +38,15 @@ const sendVerificationEmail = async (toEmail, name, token) => {
             <h2 style="color:#fff;font-size:22px;margin:0 0 12px;">Hi ${name || 'there'} 👋</h2>
             <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 24px;">
               Welcome to Ticikitify! Please verify your email address to activate your account.
+<<<<<<< HEAD
               This link expires in <strong style="color:#fff;">24 hours</strong>.
+=======
+<<<<<<< HEAD
+              This link expires in <strong style="color:#fff;">24 hours</strong>.
+=======
+              This link expires in <strong style="color:#fff;">1 minute</strong>.
+>>>>>>> 778f5b13ddf65382c18835a955514b8f0d18db0e
+>>>>>>> cc929bc1ffbcaf482aac36df8e71c4e8e23c8788
             </p>
 
             <!-- Button -->
