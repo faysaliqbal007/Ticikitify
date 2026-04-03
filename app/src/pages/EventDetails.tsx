@@ -207,9 +207,17 @@ export default function EventDetails() {
               <div className="bg-dark-50 rounded-2xl p-6 border border-white/5">
                 <h2 className="text-xl font-semibold text-white mb-4">Organizer</h2>
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-2xl font-bold text-white">
-                    {event.organizer.name.charAt(0)}
-                  </div>
+                  {event.organizer.logo ? (
+                    <img 
+                      src={event.organizer.logo} 
+                      alt={event.organizer.name}
+                      className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-2xl font-bold text-white flex-shrink-0">
+                      {event.organizer.name.charAt(0)}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-white">{event.organizer.name}</h3>
                     <p className="text-gray-400 text-sm mb-2">{event.organizer.description}</p>
