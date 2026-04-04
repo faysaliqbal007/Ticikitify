@@ -12,6 +12,7 @@ export default function Profile() {
     const { user, updateUser } = useAuth();
     const [name, setName] = useState(user?.name || '');
     const [avatar, setAvatar] = useState(user?.avatar || '');
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,40 +27,8 @@ export default function Profile() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Resize image to avoid throwing LocalStorage Quota Exceeded
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 150;
-                    const MAX_HEIGHT = 150;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx?.drawImage(img, 0, 0, width, height);
-
-                    const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                    setAvatar(resizedDataUrl);
-                };
-                img.src = reader.result as string;
-            };
-            reader.readAsDataURL(file);
+            setAvatarFile(file);
+            setAvatar(URL.createObjectURL(file));
         }
     };
 
@@ -68,10 +37,13 @@ export default function Profile() {
         setIsLoading(true);
 
         try {
-            // Simulate API call delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+            const formData = new FormData();
+            if (name) formData.append('name', name);
+            if (avatarFile) {
+                formData.append('image', avatarFile);
+            }
 
-            updateUser({ name, avatar });
+            await updateUser(formData);
             toast.success('Profile updated successfully');
         } catch (error) {
             toast.error('Failed to update profile');
