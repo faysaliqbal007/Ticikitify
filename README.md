@@ -44,17 +44,19 @@ The application utilizes a **MERN-like stack** (MongoDB, Express, React, Node.js
 
 ---
 
-##  Project Structure
-
-```text
 Ticikitify/
-├── app/                  # Frontend React application 
-│   ├── src/              # React components, contexts, and pages
-│   ├── package.json      # Frontend dependencies
-│   └── ...
-└── server/               # Backend Express application
-    ├── routes/           # API routes 
-    ├── models/           # Mongoose schemas 
-    ├── utils/            # Helper functions 
-    ├── package.json      # Backend dependencies
-    └── ...
+├── app/                  # Frontend (React + Vite)
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── lib/
+│   │   ├── context/
+│   │   └── index.css
+│   └── package.json
+
+└── server/               # Backend (Express)
+    ├── config/
+    ├── models/
+    ├── routes/
+    ├── middlewares/
+    └── index.js
