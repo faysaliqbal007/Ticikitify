@@ -12,7 +12,6 @@ import Navbar from '@/components/Navbar';
 import { useOrganizer } from '@/context/OrganizerContext';
 import { useEvents } from '@/context/EventsContext';
 import { categories } from '@/data/mockData';
-import type { Event } from '@/types';
 import { toast } from 'sonner';
 
 const sidebarLinks = [
@@ -68,93 +67,47 @@ export default function OrganizerCreateEvent() {
     if (!canSubmit) return;
     setIsSubmitting(true);
 
-    let imageUrl = existingImageUrl || '/event-custom.jpg';
-    if (bannerImage) {
-      try {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              const MAX_WIDTH = 1200;
-              let width = img.width, height = img.height;
-              if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-              canvas.width = width; canvas.height = height;
-              canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL('image/jpeg', 0.8));
-            };
-            img.onerror = reject;
-            img.src = reader.result as string;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(bannerImage);
-        });
-        imageUrl = base64;
-      } catch {
-        imageUrl = URL.createObjectURL(bannerImage);
-      }
-    }
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('category', category);
+    formData.append('date', date);
+    formData.append('venue', venue);
+    formData.append('city', city);
+    formData.append('price', ticketPrice);
 
     const price = parseInt(ticketPrice) || 0;
     const qty = parseInt(ticketQty) || 0;
+    
+    const ticketTiers = [{
+      id: 'general',
+      name: 'General',
+      price: price,
+      quantity: qty,
+      available: qty,
+      description: 'General Admission',
+    }];
+    
+    formData.append('ticketTiers', JSON.stringify(ticketTiers));
 
-    if (isEditMode && editId) {
-      // Update existing event
-      updateEvent(editId, {
-        title,
-        description,
-        category: category as Event['category'],
-        image: imageUrl,
-        date,
-        venue,
-        city,
-        price,
-        ticketTiers: [{
-          id: 'general',
-          name: 'General',
-          price,
-          quantity: qty,
-          available: qty,
-          description: 'General Admission',
-        }],
-        ticketsRemaining: qty,
-      });
-      setIsSubmitting(false);
+    if (bannerImage) {
+      formData.append('image', bannerImage);
+    }
+
+    try {
+      if (isEditMode && editId) {
+        await updateEvent(editId, formData);
+        toast.success('Event updated successfully!');
+      } else {
+        await addEvent(formData);
+        toast.success('Event submitted for admin approval!');
+      }
       setIsCompleted(true);
-      toast.success('Event updated successfully!');
-    } else {
-      // Create new event
-      const eventData: Omit<Event, 'id' | 'ticketsRemaining' | 'organizer'> = {
-        title,
-        description,
-        shortDescription: description,
-        fullDescription: description,
-        category: category as Event['category'],
-        image: imageUrl,
-        date,
-        time: '10:00',
-        venue,
-        city,
-        price,
-        isFeatured: false,
-        isTrending: false,
-        artists: [],
-        ticketTiers: [{
-          id: 'general',
-          name: 'General',
-          price,
-          quantity: qty,
-          available: qty,
-          description: 'General Admission',
-        }],
-        status: 'pending',
-        isSeatBased: false,
-      };
-      addEvent(eventData);
+    } catch (error) {
+      toast.error('Failed to submit event.');
+      console.error(error);
+    } finally {
       setIsSubmitting(false);
-      setIsCompleted(true);
-      toast.success('Event submitted for admin approval!');
     }
   };
 
