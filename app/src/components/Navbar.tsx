@@ -212,6 +212,61 @@ export default function Navbar() {
         </div>
       </motion.nav>
 
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-0 z-40 bg-dark-bg/95 backdrop-blur-xl pt-20 md:hidden"
+          >
+            <div className="px-4 py-6 space-y-4">
+              <form onSubmit={handleSearch} className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search events..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 bg-white/5 border-white/10 text-white"
+                  />
+                </div>
+              </form>
+
+              {navLinks.map((link, index) => (
+                <motion.div
+                  key={link.name}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Link
+                    to={link.path}
+                    onClick={
+                      link.path === '/organizer'
+                        ? (e) => {
+                          e.preventDefault();
+                          setIsMobileMenuOpen(false);
+                          if (!user || user.role !== 'organizer') {
+                            navigate('/login?type=organizer');
+                          } else {
+                            navigate('/organizer');
+                          }
+                        }
+                        : () => setIsMobileMenuOpen(false)
+                    }
+                    className={`block py-3 text-lg font-medium ${isActive(link.path)
+                      ? 'text-gradient'
+                      : 'text-gray-400 hover:text-white'
+                      }`}
+                  >
+                    {link.name}
+                  </Link>
+                </motion.div>
+              ))}
+
               <div className="pt-6 border-t border-white/10">
                 {user ? (
                   <>
