@@ -90,45 +90,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ─── Register ── returns verification info, NOT a JWT ──────────────────────
-  const register = async (data: RegisterData): Promise<RegisterResult> => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await apiRegister(data);
-      // Registration now always returns requiresVerification: true
-      // No token is issued until email is verified
-      return {
-        requiresVerification: true,
-        email: response.email,
-        message: response.message,
-      };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed. Please try again.';
-      setError(message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ─── Verify email (called from /verify-email page) ─────────────────────────
-  const verifyEmail = async (token: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await apiVerifyEmail(token);
-      setToken(response.token);
-      setUser(toUser(response.user));
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Verification failed.';
-      setError(message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // ─── Logout ─────────────────────────────────────────────────────────────────
   const logout = () => {
     removeToken();
