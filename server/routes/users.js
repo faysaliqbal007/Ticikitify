@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
+const { parser, deleteFromCloudinary } = require('../config/cloudinary');
 
 // ─── GET /api/users/me ─────────────────────────────────────────────────────────
 // Get the currently logged-in user's profile
@@ -39,9 +40,18 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
 // ─── PUT /api/users/me ─────────────────────────────────────────────────────────
 // Update the logged-in user's profile (name, phone, avatar)
 // Email and role are NOT changeable via this endpoint
-router.put('/me', protect, async (req, res) => {
+router.put('/me', protect, parser.single('image'), async (req, res) => {
   try {
-    const { name, phone, avatar } = req.body;
+    const { name, phone } = req.body;
+    let avatar = req.body.avatar;
+
+    if (req.file && req.file.path) {
+      avatar = req.file.path;
+      const currentUser = await User.findById(req.user._id);
+      if (currentUser && currentUser.avatar) {
+        await deleteFromCloudinary(currentUser.avatar);
+      }
+    }
 
     // Build update object with only the allowed fields
     const updates = {};
