@@ -23,9 +23,13 @@ async function request<T>(
   const token = getToken();
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  // Only append application/json if sending a JSON string body
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -92,8 +96,10 @@ export const apiGetMe = () => request<UserProfile>('/users/me');
 
 export const apiGetAllUsers = () => request<UserProfile[]>('/users/all');
 
-export const apiUpdateProfile = (data: { name?: string; phone?: string; avatar?: string }) =>
-  request<UserProfile>('/users/me', { method: 'PUT', body: JSON.stringify(data) });
+export const apiUpdateProfile = (data: FormData | { name?: string; phone?: string; avatar?: string }) => {
+  const isFormData = data instanceof FormData;
+  return request<UserProfile>('/users/me', { method: 'PUT', body: isFormData ? data : JSON.stringify(data) });
+};
 
 export const apiChangePassword = (data: { currentPassword: string; newPassword: string }) =>
   request<{ message: string }>('/users/me/password', { method: 'PUT', body: JSON.stringify(data) });
@@ -108,14 +114,21 @@ export const apiGetAllEvents = () => request<EventType[]>('/events/all');
 export const apiGetMyEvents = () => request<EventType[]>('/events/my');
 export const apiGetEvent = (id: string) => request<EventType>(`/events/${id}`);
 
-export const apiCreateEvent = (data: Partial<EventType>) =>
-  request<EventType>('/events', { method: 'POST', body: JSON.stringify(data) });
+export const apiCreateEvent = (data: FormData | Partial<EventType>) => {
+  const isFormData = data instanceof FormData;
+  return request<EventType>('/events', { method: 'POST', body: isFormData ? data : JSON.stringify(data) });
+};
 
-export const apiUpdateEvent = (id: string, data: Partial<EventType>) =>
-  request<EventType>(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiUpdateEvent = (id: string, data: FormData | Partial<EventType>) => {
+  const isFormData = data instanceof FormData;
+  return request<EventType>(`/events/${id}`, { method: 'PUT', body: isFormData ? data : JSON.stringify(data) });
+};
 
 export const apiUpdateEventStatus = (id: string, status: string) =>
   request<EventType>(`/events/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+
+export const apiToggleTrending = (id: string, isTrending: boolean) =>
+  request<EventType>(`/events/${id}/trending`, { method: 'PUT', body: JSON.stringify({ isTrending }) });
 
 export const apiDeleteEvent = (id: string) =>
   request<{ message: string }>(`/events/${id}`, { method: 'DELETE' });
