@@ -35,7 +35,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<RegisterResult>;
   verifyEmail: (token: string) => Promise<void>;
   logout: () => void;
-  updateUser: (data: Partial<User>) => Promise<void>;
+  updateUser: (data: Partial<User> | FormData) => Promise<void>;
   clearError: () => void;
 }
 
@@ -136,16 +136,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
-  // ─── Update profile ─────────────────────────────────────────────────────────
-  const updateUser = async (data: Partial<User>) => {
+  const updateUser = async (data: Partial<User> | FormData) => {
     if (!user) return;
     setError(null);
     try {
-      const updated = await apiUpdateProfile({
+      const isFormData = data instanceof FormData;
+      const apiData = isFormData ? data : {
         name: data.name,
         phone: data.phone,
         avatar: data.avatar,
-      });
+      };
+      const updated = await apiUpdateProfile(apiData);
       setUser(toUser(updated));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Profile update failed.';
