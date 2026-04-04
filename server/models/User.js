@@ -78,7 +78,7 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 userSchema.methods.generateVerificationToken = function () {
   const token = crypto.randomBytes(32).toString('hex');
   this.verificationToken = token;
-  this.verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  this.verificationExpires = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
   return token;
 };
 
