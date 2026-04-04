@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Event = require('../models/Event');
 const { protect, authorize } = require('../middleware/auth');
+const { parser, deleteFromCloudinary } = require('../config/cloudinary');
 
 // ─── Helper: format event for frontend ────────────────────────────────────────
 const formatEvent = (event) => ({
@@ -25,7 +26,8 @@ const formatEvent = (event) => ({
   isSeatBased: event.isSeatBased || false,
   organizer: {
     id: event.organizer?._id?.toString() || event.organizer?.toString() || '',
-    name: event.organizerInfo?.name || 'Organizer',
+    name: event.organizer?.name || event.organizerInfo?.name || 'Organizer',
+    logo: event.organizer?.avatar || '',
     description: event.organizerInfo?.description || 'Event Organizer',
     eventsCount: 0,
     rating: 5.0,
@@ -54,7 +56,7 @@ router.get('/', async (req, res) => {
     // Public users only see live/approved events
     else if (!organizer) filter.status = { $in: ['live', 'approved'] };
 
-    const events = await Event.find(filter).sort({ createdAt: -1 });
+    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 });
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events]', err);
@@ -66,7 +68,7 @@ router.get('/', async (req, res) => {
 // Admin only: see ALL events regardless of status
 router.get('/all', protect, authorize('admin'), async (req, res) => {
   try {
-    const events = await Event.find({}).sort({ createdAt: -1 });
+    const events = await Event.find({}).populate('organizer', 'name avatar').sort({ createdAt: -1 });
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events/all]', err);
@@ -79,7 +81,7 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
 router.get('/my', protect, authorize('organizer', 'admin'), async (req, res) => {
   try {
     const filter = req.user.role === 'admin' ? {} : { organizer: req.user._id };
-    const events = await Event.find(filter).sort({ createdAt: -1 });
+    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 });
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events/my]', err);
@@ -90,7 +92,7 @@ router.get('/my', protect, authorize('organizer', 'admin'), async (req, res) => 
 // ─── GET /api/events/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.id).populate('organizer', 'name avatar');
     if (!event) return res.status(404).json({ message: 'Event not found.' });
     res.json(formatEvent(event));
   } catch (err) {
@@ -101,9 +103,18 @@ router.get('/:id', async (req, res) => {
 
 // ─── POST /api/events ─────────────────────────────────────────────────────────
 // Organizer: creates with 'pending' status; Admin: creates with 'live' status
-router.post('/', protect, authorize('organizer', 'admin'), async (req, res) => {
+router.post('/', protect, authorize('organizer', 'admin'), parser.single('image'), async (req, res) => {
   try {
-    const { title, description, category, image, date, time, venue, city, price, ticketTiers } = req.body;
+    const { title, description, category, date, time, venue, city, price } = req.body;
+    let image = req.body.image;
+    if (req.file && req.file.path) {
+      image = req.file.path;
+    }
+
+    let ticketTiers = req.body.ticketTiers;
+    if (typeof ticketTiers === 'string') {
+      try { ticketTiers = JSON.parse(ticketTiers); } catch(e) {}
+    }
 
     if (!title || !description || !category || !date || !venue || !price) {
       return res.status(400).json({ message: 'Please provide all required fields.' });
@@ -153,7 +164,7 @@ router.post('/', protect, authorize('organizer', 'admin'), async (req, res) => {
 
 // ─── PUT /api/events/:id ──────────────────────────────────────────────────────
 // Update event: organizer (own events only) or admin (any event)
-router.put('/:id', protect, authorize('organizer', 'admin'), async (req, res) => {
+router.put('/:id', protect, authorize('organizer', 'admin'), parser.single('image'), async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found.' });
@@ -163,7 +174,20 @@ router.put('/:id', protect, authorize('organizer', 'admin'), async (req, res) =>
       return res.status(403).json({ message: 'You can only edit your own events.' });
     }
 
-    const { title, description, category, image, date, venue, price, ticketTiers } = req.body;
+    const { title, description, category, date, venue, price } = req.body;
+    let image = req.body.image;
+    if (req.file && req.file.path) {
+      image = req.file.path;
+      if (event.image && event.image !== '/event-custom.jpg') {
+        await deleteFromCloudinary(event.image);
+      }
+    }
+    
+    let ticketTiers = req.body.ticketTiers;
+    if (typeof ticketTiers === 'string') {
+      try { ticketTiers = JSON.parse(ticketTiers); } catch(e) {}
+    }
+
     const qty = ticketTiers?.[0]?.quantity || event.ticketsRemaining;
 
     const updates = {
@@ -210,6 +234,34 @@ router.put('/:id/status', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// ─── PUT /api/events/:id/trending ─────────────────────────────────────────────
+// Admin only: toggle trending
+router.put('/:id/trending', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { isTrending } = req.body;
+    
+    // Check max trending limit
+    if (isTrending) {
+      const trendingCount = await Event.countDocuments({ isTrending: true });
+      if (trendingCount >= 4) {
+        return res.status(400).json({ message: 'Maximum of 4 events can be trending at once.' });
+      }
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isTrending } },
+      { new: true }
+    );
+    if (!event) return res.status(404).json({ message: 'Event not found.' });
+    res.json(formatEvent(event));
+  } catch (err) {
+    if (err.name === 'CastError') return res.status(404).json({ message: 'Event not found.' });
+    console.error('[PUT /events/:id/trending]', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 // ─── DELETE /api/events/:id ───────────────────────────────────────────────────
 // Organizer (own) or Admin (any)
 router.delete('/:id', protect, authorize('organizer', 'admin'), async (req, res) => {
@@ -221,6 +273,9 @@ router.delete('/:id', protect, authorize('organizer', 'admin'), async (req, res)
       return res.status(403).json({ message: 'You can only delete your own events.' });
     }
 
+    if (event.image && event.image !== '/event-custom.jpg') {
+      await deleteFromCloudinary(event.image);
+    }
     await event.deleteOne();
     res.json({ message: 'Event deleted successfully.' });
   } catch (err) {
