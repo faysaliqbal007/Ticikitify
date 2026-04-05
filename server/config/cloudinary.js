@@ -16,7 +16,11 @@ const storage = new CloudinaryStorage({
   }
 });
 
-const parser = multer({ storage: storage });
+const parser = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // Exactly 10 Megabytes in bytes
+});
+
 
 const deleteFromCloudinary = async (imageUrl) => {
   if (!imageUrl || !imageUrl.includes('cloudinary.com')) return;
