@@ -55,6 +55,20 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+
+    // ─── Password Reset ──────────────────────────────────────────────────────
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
+    passwordUpdateExpires: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -79,6 +93,16 @@ userSchema.methods.generateVerificationToken = function () {
   const token = crypto.randomBytes(32).toString('hex');
   this.verificationToken = token;
   this.verificationExpires = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
+  return token;
+};
+
+// ─── Generate password reset token ──────────────────────────────────────────
+userSchema.methods.generatePasswordResetToken = function () {
+  const token = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = token;
+  // User gets exactly 5 minutes to click the email link (increased to fix timeout issues)
+  this.resetPasswordExpires = new Date(Date.now() + 5 * 60 * 1000);
+  this.passwordUpdateExpires = undefined; // clear any old windows
   return token;
 };
 
