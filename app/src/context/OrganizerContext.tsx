@@ -1,21 +1,23 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Event, PromoCode, Organizer, Order } from '@/types';
-import { orders as seedOrders } from '@/data/mockData';
+import type { Event, PromoCode, Order } from '@/types';
 import { useEvents } from './EventsContext';
 import { useAuth } from './AuthContext';
+import { apiGetPromoCodes, apiCreatePromoCode, apiUpdatePromoCode as updatePromoApi, apiDeletePromoCode } from '@/lib/api';
 
 interface OrganizerContextType {
   events: Event[];
   orders: Order[];
-  addEvent: (event: Omit<Event, 'id' | 'ticketsRemaining' | 'organizer'>) => Event;
-  updateEvent: (id: string, updates: Partial<Event>) => void;
+  addEvent: (event: Omit<Event, 'id' | 'ticketsRemaining' | 'organizer'> | FormData) => Promise<Event>;
+  updateEvent: (id: string, updates: Partial<Event> | FormData) => Promise<void>;
   deleteEvent: (id: string) => void;
   duplicateEvent: (id: string) => void;
   updateEventStatus: (id: string, status: Event['status']) => void;
+  toggleTrending: (id: string, isTrending: boolean) => Promise<void>;
   promoCodes: PromoCode[];
-  addPromoCode: (data: Omit<PromoCode, 'id' | 'usageCount'>) => void;
-  updatePromoCode: (id: string, updates: Partial<PromoCode>) => void;
+  addPromoCode: (data: Omit<PromoCode, 'id' | 'usageCount'>) => Promise<void>;
+  updatePromoCode: (id: string, updates: Partial<PromoCode>) => Promise<void>;
+  deletePromoCode: (id: string) => Promise<void>;
 }
 
 export const OrganizerContext = createContext<OrganizerContextType | undefined>(undefined);
@@ -24,7 +26,7 @@ export const OrganizerContext = createContext<OrganizerContextType | undefined>(
 // const DEFAULT_ORGANIZER_ID = 'org1';
 
 export function OrganizerProvider({ children }: { children: ReactNode }) {
-  const { events: allEvents, addEvent: addGlobalEvent, updateEvent: updateGlobalEvent, updateEventStatus: updateGlobalEventStatus, deleteEvent: deleteGlobalEvent } = useEvents();
+  const { events: allEvents, addEvent: addGlobalEvent, updateEvent: updateGlobalEvent, updateEventStatus: updateGlobalEventStatus, toggleTrending: updateGlobalTrending, deleteEvent: deleteGlobalEvent } = useEvents();
   const { user } = useAuth();
 
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
@@ -45,34 +47,30 @@ export function OrganizerProvider({ children }: { children: ReactNode }) {
     return allEvents.filter(e => e.organizer && e.organizer.id === organizerId);
   }, [allEvents, organizerId, user]);
 
-  const addEvent = (data: Omit<Event, 'id' | 'ticketsRemaining' | 'organizer'>): Event => {
-    const totalQuantity = data.ticketTiers.reduce((sum, tier) => sum + (tier.quantity || 0), 0);
+  // Fetch PromoCodes
+  useMemo(() => {
+    if (user && (user.role === 'organizer' || user.role === 'admin')) {
+      apiGetPromoCodes().then((res) => {
+        // Map backend _id to frontend id if needed, or assume backend returns _id which we assign to id
+        const mapped = res.map((r: any) => ({ ...r, id: r._id || r.id }));
+        setPromoCodes(mapped);
+      }).catch(console.error);
+    }
+  }, [user]);
 
-    // Construct Organizer object from User + defaults
-    const organizerProfile: Organizer = {
-      id: organizerId,
-      name: user?.name || 'Organizer',
-      description: 'Event Organizer',
-      eventsCount: allEvents.filter(e => e.organizer && e.organizer.id === organizerId).length + 1,
-      rating: 5.0, // New organizers get 5?
-      logo: user?.avatar
-    };
-
-    const newEvent: Event = {
-      ...data,
-      id: `org-${Date.now()}`,
-      organizer: organizerProfile,
-      ticketsRemaining: totalQuantity,
-      // Use provided status or fallback. Organizer events default to pending if not specified.
-      status: data.status || (user?.role === 'admin' ? 'approved' : 'pending'),
-    };
-
-    addGlobalEvent(newEvent);
+  const addEvent = async (data: Omit<Event, 'id' | 'ticketsRemaining' | 'organizer'> | FormData): Promise<Event> => {
+    let payload = data;
+    if (!(data instanceof FormData)) {
+      payload = {
+        ...data,
+        status: data.status || (user?.role === 'admin' ? 'approved' : 'pending'),
+      };
+    }
+    const newEvent = await addGlobalEvent(payload);
     return newEvent;
   };
 
-  const updateEvent = (id: string, updates: Partial<Event>) => {
-    // Logic: check ownership
+  const updateEvent = async (id: string, updates: Partial<Event> | FormData) => {
     const event = allEvents.find(e => e.id === id);
     if (!event) return;
 
@@ -80,7 +78,7 @@ export function OrganizerProvider({ children }: { children: ReactNode }) {
       console.warn("Unauthorized update attempt");
       return;
     }
-    updateGlobalEvent(id, updates);
+    await updateGlobalEvent(id, updates);
   };
 
   const deleteEvent = (id: string) => {
@@ -119,27 +117,52 @@ export function OrganizerProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addPromoCode = (data: Omit<PromoCode, 'id' | 'usageCount'>) => {
-    setPromoCodes((prev) => [
-      {
-        ...data,
-        id: `pc-${Date.now()}`,
-        usageCount: 0,
-      },
-      ...prev,
-    ]);
+  const toggleTrending = async (id: string, isTrending: boolean) => {
+    if (user?.role !== 'admin') return;
+    try {
+      await updateGlobalTrending(id, isTrending);
+    } catch (err) {
+      console.error('Failed to update trending status', err);
+      throw err; // Re-throw to handle it in UI (e.g., max 4 limit)
+    }
   };
 
-  const updatePromoCode = (id: string, updates: Partial<PromoCode>) => {
-    setPromoCodes((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  const addPromoCode = async (data: Omit<PromoCode, 'id' | 'usageCount'>) => {
+    try {
+      const newPromo = await apiCreatePromoCode(data);
+      const mapped = { ...newPromo, id: newPromo._id || newPromo.id };
+      setPromoCodes((prev) => [mapped, ...prev]);
+    } catch(e) {
+      console.error(e);
+      throw e;
+    }
   };
 
-  const orders = useMemo(() => {
-    if (!user || user.role === 'customer') return [];
-    if (user.role === 'admin') return seedOrders;
-    // Strict filtering by organizer ID
-    return seedOrders.filter(o => o.event && o.event.organizer && o.event.organizer.id === organizerId);
-  }, [organizerId, user]);
+  const updatePromoCode = async (id: string, updates: Partial<PromoCode>) => {
+    try {
+      const updated = await updatePromoApi(id, updates);
+      const mapped = { ...updated, id: updated._id || updated.id };
+      setPromoCodes((prev) => prev.map((p) => (p.id === id ? mapped : p)));
+    } catch(e) {
+      console.error(e);
+      throw e;
+    }
+  };
+
+  const deletePromoCode = async (id: string) => {
+    try {
+      await apiDeletePromoCode(id);
+      setPromoCodes((prev) => prev.filter(p => p.id !== id));
+    } catch(e) {
+      console.error(e);
+      throw e;
+    }
+  };
+
+  const orders = useMemo((): Order[] => {
+    // Orders now come from the API (organizer-stats / admin-stats endpoints)
+    return [];
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -150,9 +173,11 @@ export function OrganizerProvider({ children }: { children: ReactNode }) {
       deleteEvent,
       duplicateEvent,
       updateEventStatus,
+      toggleTrending,
       promoCodes,
       addPromoCode,
       updatePromoCode,
+      deletePromoCode,
     }),
     [events, orders, promoCodes, organizerId, user, allEvents]
   );
