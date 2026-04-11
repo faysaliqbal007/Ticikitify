@@ -12,7 +12,13 @@ const router = express.Router();           // Create modular router instance
 const jwt = require('jsonwebtoken');        // For creating/verifying JSON Web Tokens
 const User = require('../models/User');     // Mongoose User model
 const { sendVerificationEmail } = require('../utils/email'); // Email sending utility
+const rateLimit = require('express-rate-limit');
 
+const authLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 15, // limit each IP to 15 requests per windowMs
+  message: { message: 'Too many authentication attempts from this IP. Please try again after 5 minutes.' }
+});
 // ─── Helper function: Creates a signed JWT containing only user ID ─────────────
 const generateToken = (userId) => {
   // Payload contains only minimal data → better security & smaller token
@@ -42,7 +48,7 @@ const formatUser = (user, token) => ({
 
 // ─── POST /api/auth/register ───────────────────────────────────────────────────
 // Creates new unverified user + sends verification email
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { name, email, password, phone, role } = req.body;
 
@@ -165,7 +171,7 @@ router.get('/verify/:token', async (req, res) => {
 });
 
 // ─── POST /api/auth/resend-verification ────────────────────────────────────────
-router.post('/resend-verification', async (req, res) => {
+router.post('/resend-verification', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -210,7 +216,7 @@ router.post('/resend-verification', async (req, res) => {
 });
 
 // ─── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
@@ -261,6 +267,120 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('[POST /login]', err);
     res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+});
+
+// ─── POST /api/auth/forgot-password ────────────────────────────────────────────
+// Finds user by email, generates 1-min token, and sends reset email
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Explicit error per user request
+      return res.status(404).json({ message: 'No account found with this email address.' });
+    }
+
+    // Explicitly block password resets for admin accounts for extreme security
+    if (user.role === 'admin' || user.email === 'admin@ticikitify.com') {
+      return res.status(403).json({ message: 'Password resets are strictly prohibited for administrator accounts.' });
+    }
+
+    const resetToken = user.generatePasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    // Send the email
+    try {
+      const { sendPasswordResetEmail } = require('../utils/email');
+      await sendPasswordResetEmail(user.email, user.name, resetToken);
+    } catch (err) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      return res.status(500).json({ message: 'Error sending email. Please try again later.' });
+    }
+
+    res.status(200).json({ message: 'If an account with that email exists, we sent a reset link to it.' });
+  } catch (err) {
+    console.error('[POST /forgot-password]', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+});
+
+// ─── GET /api/auth/verify-reset-token/:token ───────────────────────────────────
+// Validates the 5-min email token, grants a 5-min password update window
+router.get('/verify-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // First find if the token exists at all
+    const user = await User.findOne({
+      resetPasswordToken: token
+    }).select('+resetPasswordToken +resetPasswordExpires +passwordUpdateExpires');
+
+    if (!user) {
+      return res.status(400).json({ message: 'This reset link is invalid.' });
+    }
+
+    // 1. Double-mount safegaurd (React Strict Mode or manual refresh)
+    // If they already verified it and have the 5-minute update window open, just return success!
+    if (user.passwordUpdateExpires && user.passwordUpdateExpires > Date.now()) {
+      return res.status(200).json({ message: 'Token previously verified. You are inside the window.' });
+    }
+
+    // 2. Otherwise, check if the initial 5-min email token is still valid
+    if (user.resetPasswordExpires && user.resetPasswordExpires > Date.now()) {
+      // Transition from Email Phase -> Update Password Phase
+      user.resetPasswordExpires = undefined; // destroy the initial email constraint
+      user.passwordUpdateExpires = new Date(Date.now() + 5 * 60 * 1000); // exactly 5 minutes from NOW
+      await user.save({ validateBeforeSave: false });
+      return res.status(200).json({ message: 'Token officially verified. You have 5 minutes to update your password.' });
+    }
+
+    // 3. If neither are valid, it really expired.
+    return res.status(400).json({ message: 'This reset link has expired (exceeded 5 minutes).' });
+  } catch (err) {
+    console.error('[GET /verify-reset-token]', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// ─── POST /api/auth/reset-password ─────────────────────────────────────────────
+// Receives new password, validates against the 2-min window, hashes & saves
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and new password are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      passwordUpdateExpires: { $gt: Date.now() } // MUST be within the 2-min window
+    }).select('+resetPasswordToken +passwordUpdateExpires +password');
+
+    if (!user) {
+      return res.status(400).json({ message: 'Your 5-minute time window has expired or the token is invalid. Please request a new reset link.' });
+    }
+
+    // Update password (hashing handled by mongoose pre-save hook)
+    user.password = newPassword;
+    
+    // Wipe all tokens immediately! Unusable forever.
+    user.resetPasswordToken = undefined;
+    user.passwordUpdateExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Password has been successfully updated. You may now log in.' });
+  } catch (err) {
+    console.error('[POST /reset-password]', err);
+    res.status(500).json({ message: 'Server error.' });
   }
 });
 
