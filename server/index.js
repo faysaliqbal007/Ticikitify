@@ -26,9 +26,15 @@ const eventRoutes = require('./routes/events');
 // Create the main Express application instance
 const app = express();
 
+// Carbon footprint
+const carbonMiddleware = require('./middleware/CO2');
+
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 
+app.use(express.json());
+
+app.use(carbonMiddleware);
 // Enable CORS with custom configuration
 app.use(cors({
   origin: (origin, callback) => { // Function that checks if request origin is allowed
