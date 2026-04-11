@@ -71,6 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     restoreSession();
+
+    // Setup global unauthorized listener for strict UX handling
+    const handleUnauthorized = () => {
+      removeToken();
+      setUser(null);
+      setError('Your session has expired. Please log in again.');
+    };
+
+    window.addEventListener('ticikitify:auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('ticikitify:auth:unauthorized', handleUnauthorized);
   }, []);
 
   // ─── Login ──────────────────────────────────────────────────────────────────
