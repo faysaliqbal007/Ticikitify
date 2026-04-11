@@ -56,7 +56,7 @@ export default function TrendingEvents() {
         </motion.div>
 
         {/* Events Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {trendingEvents.map((event, index) => (
             <motion.div
               key={event.id}
@@ -70,7 +70,7 @@ export default function TrendingEvents() {
                   className="group relative bg-dark-50 rounded-2xl overflow-hidden border border-white/5 hover:border-purple-500/30 transition-all duration-300 hover:shadow-glow"
                 >
                   {/* Image */}
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative h-32 sm:h-48 overflow-hidden">
                     <img
                       src={event.image}
                       alt={event.title}
@@ -78,26 +78,19 @@ export default function TrendingEvents() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-dark-50 via-transparent to-transparent" />
 
-                    {/* Badges */}
-                    <div className="absolute top-3 left-3 flex gap-2">
-                      {event.isFeatured && (
-                        <Badge className="bg-purple-500/80 text-white border-0">
-                          Featured
-                        </Badge>
-                      )}
-                      {event.ticketsRemaining < 100 && (
-                        <Badge className="bg-red-500/80 text-white border-0">
-                          Selling Fast
-                        </Badge>
-                      )}
+                    {/* Category Badge */}
+                    <div className="absolute top-3 left-3">
+                      <Badge className="bg-purple-500/80 text-white border-0 capitalize">
+                        {event.category}
+                      </Badge>
                     </div>
 
                     {/* Price Tag */}
-                    <div className="absolute bottom-3 right-3">
-                      <div className="bg-dark-bg/90 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                        <span className="text-lg font-bold text-cyan-400">৳{event.price.toLocaleString('en-US', { notation: "compact", maximumFractionDigits: 1 })}</span>
+                    <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3">
+                      <div className="bg-dark-bg/90 backdrop-blur-sm px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg">
+                        <span className="text-sm sm:text-lg font-bold text-cyan-400">৳{event.price.toLocaleString('en-US', { notation: "compact", maximumFractionDigits: 1 })}</span>
                         {event.originalPrice && (
-                          <span className="text-sm text-gray-500 line-through ml-2">
+                          <span className="text-[10px] sm:text-sm text-gray-500 line-through ml-1 sm:ml-2">
                             ৳{event.originalPrice.toLocaleString('en-US', { notation: "compact", maximumFractionDigits: 1 })}
                           </span>
                         )}
@@ -106,53 +99,47 @@ export default function TrendingEvents() {
                   </div>
 
                   {/* Content */}
-                  <div className="p-5">
-                    <h3 className="text-lg font-semibold text-white mb-3 line-clamp-2 group-hover:text-cyan-400 transition-colors">
+                  <div className="p-3 sm:p-5">
+                    <h3 className="text-sm sm:text-lg font-semibold text-white mb-2 sm:mb-3 line-clamp-2 group-hover:text-cyan-400 transition-colors">
                       {event.title}
                     </h3>
 
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Calendar className="w-4 h-4 text-purple-500" />
-                        <span>{formatDate(event.date)}</span>
+                    <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-400">
+                        <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 shrink-0" />
+                        <span className="truncate">{formatDate(event.date)}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Clock className="w-4 h-4 text-purple-500" />
-                        <span>{event.time}</span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-400">
+                        <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 shrink-0" />
+                        <span className="truncate">{event.time}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <MapPin className="w-4 h-4 text-purple-500" />
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-400">
+                        <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 shrink-0" />
                         <span className="truncate">{event.venue}</span>
                       </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 pt-3 sm:pt-4 border-t border-white/5">
                       <div className="flex items-center gap-2">
-<<<<<<< HEAD
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-bold">
-                          {event.organizer.name.charAt(0)}
-                        </div>
-=======
                         {event.organizer.logo ? (
                           <img 
                             src={event.organizer.logo} 
                             alt={event.organizer.name}
-                            className="w-6 h-6 rounded-full object-cover border border-white/10"
+                            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover border border-white/10"
                           />
                         ) : (
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-white">
+                          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-[10px] sm:text-xs font-bold text-white">
                             {event.organizer.name.charAt(0)}
                           </div>
                         )}
->>>>>>> cc929bc1ffbcaf482aac36df8e71c4e8e23c8788
-                        <span className="text-sm text-gray-500 truncate max-w-[100px]">
+                        <span className="text-[10px] sm:text-sm text-gray-500 truncate max-w-[80px] sm:max-w-[100px]">
                           {event.organizer.name}
                         </span>
                       </div>
                       <Button
                         size="sm"
-                        className="bg-purple-500/20 text-purple-400 hover:bg-purple-500 hover:text-white transition-colors"
+                        className="bg-purple-500/20 text-purple-400 hover:bg-purple-500 hover:text-white transition-colors text-xs px-2 h-7 sm:px-3 sm:h-9"
                       >
                         Get Tickets
                       </Button>
