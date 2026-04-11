@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Navbar from '@/components/Navbar';
-import { useAuth } from '@/context/AuthContext';
 import { apiGetAllUsers } from '@/lib/api';
 
 // Temporary inline interface since it's missing from types/index.ts
