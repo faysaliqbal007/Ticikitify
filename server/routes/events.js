@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
     // Public users only see live/approved events
     else if (!organizer) filter.status = { $in: ['live', 'approved'] };
 
-    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 });
+    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 }).limit(500);
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events]', err);
@@ -68,7 +68,7 @@ router.get('/', async (req, res) => {
 // Admin only: see ALL events regardless of status
 router.get('/all', protect, authorize('admin'), async (req, res) => {
   try {
-    const events = await Event.find({}).populate('organizer', 'name avatar').sort({ createdAt: -1 });
+    const events = await Event.find({}).populate('organizer', 'name avatar').sort({ createdAt: -1 }).limit(500);
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events/all]', err);
@@ -81,7 +81,7 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
 router.get('/my', protect, authorize('organizer', 'admin'), async (req, res) => {
   try {
     const filter = req.user.role === 'admin' ? {} : { organizer: req.user._id };
-    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 });
+    const events = await Event.find(filter).populate('organizer', 'name avatar').sort({ createdAt: -1 }).limit(500);
     res.json(events.map(formatEvent));
   } catch (err) {
     console.error('[GET /events/my]', err);
@@ -117,10 +117,28 @@ router.post('/', protect, authorize('organizer', 'admin'), parser.single('image'
     }
 
     if (!title || !description || !category || !date || !venue || !price) {
+      if (req.file && req.file.path) {
+        await deleteFromCloudinary(req.file.path).catch(console.error);
+      }
       return res.status(400).json({ message: 'Please provide all required fields.' });
     }
 
-    const qty = ticketTiers?.[0]?.quantity || 0;
+    // Build final tiers and compute total remaining
+    const finalTiers = (ticketTiers && Array.isArray(ticketTiers)) ? ticketTiers.map(t => ({
+      name: t.name || 'General',
+      price: parseFloat(t.price) || parseFloat(price),
+      quantity: parseInt(t.quantity, 10) || 0,
+      available: parseInt(t.quantity, 10) || 0,
+      description: t.description || 'General Admission',
+    })) : [{
+      name: 'General',
+      price: parseFloat(price),
+      quantity: 0,
+      available: 0,
+      description: 'General Admission',
+    }];
+    
+    const totalTickets = finalTiers.reduce((sum, t) => sum + t.quantity, 0);
     const status = req.user.role === 'admin' ? 'live' : 'pending';
 
     const event = await Event.create({
@@ -133,19 +151,13 @@ router.post('/', protect, authorize('organizer', 'admin'), parser.single('image'
       venue,
       city: city || 'Dhaka',
       price,
-      ticketsRemaining: qty,
+      ticketsRemaining: totalTickets,
       organizer: req.user._id,
       organizerInfo: {
         name: req.user.name,
         description: 'Event Organizer',
       },
-      ticketTiers: ticketTiers || [{
-        name: 'General',
-        price,
-        quantity: qty,
-        available: qty,
-        description: 'General Admission',
-      }],
+      ticketTiers: finalTiers,
       isFeatured: false,
       isTrending: false,
       status,
@@ -153,6 +165,9 @@ router.post('/', protect, authorize('organizer', 'admin'), parser.single('image'
 
     res.status(201).json(formatEvent(event));
   } catch (err) {
+    if (req.file && req.file.path) {
+      await deleteFromCloudinary(req.file.path).catch(console.error);
+    }
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map((e) => e.message);
       return res.status(400).json({ message: messages[0] });
@@ -174,7 +189,7 @@ router.put('/:id', protect, authorize('organizer', 'admin'), parser.single('imag
       return res.status(403).json({ message: 'You can only edit your own events.' });
     }
 
-    const { title, description, category, date, venue, price } = req.body;
+    const { title, description, category, date, time, venue, city, price } = req.body;
     let image = req.body.image;
     if (req.file && req.file.path) {
       image = req.file.path;
@@ -188,18 +203,51 @@ router.put('/:id', protect, authorize('organizer', 'admin'), parser.single('imag
       try { ticketTiers = JSON.parse(ticketTiers); } catch(e) {}
     }
 
-    const qty = ticketTiers?.[0]?.quantity || event.ticketsRemaining;
-
     const updates = {
       ...(title && { title }),
       ...(description && { description }),
       ...(category && { category }),
       ...(image && { image }),
       ...(date && { date }),
+      ...(time && { time }),
       ...(venue && { venue }),
+      ...(city && { city }),
       ...(price !== undefined && { price }),
-      ...(ticketTiers && { ticketTiers, ticketsRemaining: qty }),
     };
+
+    // If ticket tiers are being updated, calculate remaining correctly  
+    if (ticketTiers && Array.isArray(ticketTiers)) {
+      // Import Ticket model to check already-sold count
+      const Ticket = require('../models/Ticket');
+      const soldOrders = await Ticket.find({ event: event._id, status: 'success' });
+      
+      // Build a map of how many were sold per tier name (since tier _ids change on edit)
+      const soldByName = {};
+      soldOrders.forEach(order => {
+        order.tickets.forEach(t => {
+          soldByName[t.name] = (soldByName[t.name] || 0) + t.quantity;
+        });
+      });
+
+      let newTotalRemaining = 0;
+      const safeTiers = ticketTiers.map(tier => {
+        const newQty = parseInt(tier.quantity, 10) || 0;
+        const alreadySold = soldByName[tier.name] || 0;
+        // available = new total quantity - already sold (but never below 0)
+        const available = Math.max(0, newQty - alreadySold);
+        newTotalRemaining += available;
+        return {
+          name: tier.name,
+          price: parseFloat(tier.price) || 0,
+          quantity: newQty,
+          available: available,
+          description: tier.description || 'General Admission',
+        };
+      });
+
+      updates.ticketTiers = safeTiers;
+      updates.ticketsRemaining = newTotalRemaining;
+    }
 
     const updated = await Event.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true });
     res.json(formatEvent(updated));
