@@ -18,6 +18,7 @@ const sidebarLinks = [
   { name: 'Dashboard', path: '/organizer', icon: LayoutDashboard },
   { name: 'Create Event', path: '/organizer/create-event', icon: Plus },
   { name: 'My Events', path: '/organizer/events', icon: Calendar },
+  { name: 'Promo Codes', path: '/organizer/promo-codes', icon: Calendar },
 ];
 
 export default function OrganizerCreateEvent() {
@@ -80,11 +81,9 @@ export default function OrganizerCreateEvent() {
     const qty = parseInt(ticketQty) || 0;
     
     const ticketTiers = [{
-      id: 'general',
       name: 'General',
       price: price,
       quantity: qty,
-      available: qty,
       description: 'General Admission',
     }];
     
