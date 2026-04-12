@@ -91,7 +91,7 @@ const sendPasswordResetEmail = async (toEmail, name, token) => {
           <h2 style="color:#fff;font-size:22px;margin:0 0 12px;">Password Reset Request</h2>
           <p style="color:#9ca3af;font-size:15px;line-height:1.6;margin:0 0 24px;">
             Hi ${name || 'there'}, we received a request to reset your password. 
-            This link expires in <strong style="color:#fff;">1 hour</strong>.
+            This link expires in <strong style="color:#fff;">5 minutes</strong>.
           </p>
           <div style="text-align:center;margin:32px 0;">
             <a href="${resetUrl}" style="display:inline-block;background:linear-gradient(135deg,#dc2626,#f97316);color:#fff;text-decoration:none;padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;">
